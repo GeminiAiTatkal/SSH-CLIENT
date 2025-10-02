@@ -58,8 +58,17 @@ module.exports = async (req, res) => {
                 username: username,
                 password: password,
                 port: 22,
-                readyTimeout: 20000
+                readyTimeout: 10000,
+                keepaliveInterval: 30000,
+                keepaliveCountMax: 3
             });
+            
+            // Set timeout
+            setTimeout(() => {
+                if (!conn._sock || conn._sock.readyState !== 'open') {
+                    reject(new Error('Connection timeout'));
+                }
+            }, 15000);
         });
 
     } catch (error) {
