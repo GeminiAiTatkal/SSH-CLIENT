@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Linux PuTTY Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/xterm@5.3.0/lib/xterm.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/xterm@5.3.0/css/xterm.css">
+</head>
+<body class="bg-black text-green-400 font-mono">
+    <div class="p-4">
+        <div id="connection-form" class="max-w-md mx-auto bg-gray-800 p-6 rounded">
+            <h2 class="text-xl mb-4">Linux SSH Terminal</h2>
+            <input type="text" id="host" placeholder="Host IP" class="w-full p-2 mb-2 bg-gray-700 text-white rounded">
+            <input type="text" id="username" placeholder="Username" class="w-full p-2 mb-2 bg-gray-700 text-white rounded">
+            <input type="password" id="password" placeholder="Password" class="w-full p-2 mb-4 bg-gray-700 text-white rounded">
+            <button onclick="connectSSH()" class="w-full bg-green-600 p-2 rounded">Connect to Linux</button>
+        </div>
+        
+        <div id="terminal-container" class="hidden mt-4">
+            <div id="terminal" style="height: 500px;"></div>
+        </div>
+    </div>
+
+    <script>
+        let terminal;
+        let sessionId = null;
+
+        function connectSSH() {
+            const host = document.getElementById('host').value;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            if (!host || !username || !password) {
+                alert('Fill all fields');
+                return;
+            }
+
+            document.getElementById('connection-form').classList.add('hidden');
+            document.getElementById('terminal-container').classList.remove('hidden');
+
+            terminal = new Terminal({
+                cursorBlink: true,
+                theme: { background: '#000000', foreground: '#00ff00' }
+            });
+            terminal.open(document.getElementById('terminal'));
+
+            // Connect to SSH
+            terminal.write('Connecting to ' + host + '...\r\n');
+            
+            fetch('/api/ssh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ host, username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    terminal.write('Connected to Linux server!\r\n');
+                    terminal.write('Welcome to Ubuntu\r\n');
+                    terminal.write(username + '@' + host + ':~$ ');
+                    sessionId = Date.now();
+                    setupTerminal(host, username, password);
+                } else {
+                    terminal.write('Connection failed: ' + data.error + '\r\n');
+                }
+            });
+        }
+
+        function setupTerminal(host, username, password) {
+            let currentCommand = '';
+            
+            terminal.onData(data => {
+                if (data === '\r') {
+                    terminal.write('\r\n');
+                    if (currentCommand.trim()) {
+                        executeCommand(currentCommand.trim(), host, username, password);
+                    } else {
+                        terminal.write(username + '@' + host + ':~$ ');
+                    }
+                    currentCommand = '';
+                } else if (data === '\u007f') {
+                    if (currentCommand.length > 0) {
+                        currentCommand = currentCommand.slice(0, -1);
+                        terminal.write('\b \b');
+                    }
+                } else {
+                    currentCommand += data;
+                    terminal.write(data);
+                }
+            });
+        }
+
+        function executeCommand(command, host, username, password) {
+            if (command === 'clear') {
+                terminal.clear();
+                terminal.write(username + '@' + host + ':~$ ');
+                return;
+            }
+
+            fetch('/api/ssh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ host, username, password, command })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.output) {
+                    terminal.write(data.output.replace(/\n/g, '\r\n'));
+                }
+                terminal.write(username + '@' + host + ':~$ ');
+            })
+            .catch(() => {
+                terminal.write('Command failed\r\n');
+                terminal.write(username + '@' + host + ':~$ ');
+            });
+        }
+    </script>
+</body>
+</html>
