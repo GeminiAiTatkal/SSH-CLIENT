@@ -1,0 +1,11 @@
+{
+  "name": "vercel-ssh-terminal",
+  "version": "1.0.0",
+  "main": "index.html",
+  "scripts": {
+    "build": "echo 'No build step required'"
+  },
+  "dependencies": {
+    "ssh2": "^1.15.0"
+  }
+}
